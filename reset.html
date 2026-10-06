@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kurs – Set a new password</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 16px; line-height: 1.5; color: #141821; background: #f4f6fa; }
+  h1 { color: #1f6feb; margin-bottom: 4px; }
+  .card { background: #fff; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  label { display: block; font-weight: 600; margin: 12px 0 6px; color: #555; }
+  input { width: 100%; box-sizing: border-box; font-size: 17px; padding: 12px; border: 1px solid #d0d5dd; border-radius: 10px; }
+  button { width: 100%; margin-top: 16px; font-size: 17px; font-weight: 600; padding: 14px; border: 0; border-radius: 10px; background: #1f6feb; color: #fff; }
+  button:disabled { opacity: .6; }
+  .msg { margin-top: 14px; }
+  .err { color: #c62828; }
+  .ok { color: #2e7d32; font-weight: 600; }
+</style>
+</head>
+<body>
+  <h1>Kurs</h1>
+  <div>Set a new password</div>
+
+  <div class="card" id="card">
+    <div id="status">Checking your reset link…</div>
+    <form id="form" hidden>
+      <label for="p1">New password</label>
+      <input id="p1" type="password" autocomplete="new-password" minlength="6" required>
+      <label for="p2">Repeat new password</label>
+      <input id="p2" type="password" autocomplete="new-password" minlength="6" required>
+      <button id="save" type="submit">Save new password</button>
+    </form>
+    <div id="msg" class="msg"></div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // Public values (the same ones built into the app).
+  const sb = supabase.createClient(
+    'https://pakiwioisdzznnbzkxdf.supabase.co',
+    'sb_publishable_6rp3wi9KQuVTprXMGFUJ0A_iDPc6J4T',
+    { auth: { persistSession: false, detectSessionInUrl: true } }
+  );
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
+
+  function showForm() {
+    $('status').textContent = 'Choose a new password for your Kurs account.';
+    $('form').hidden = false;
+  }
+  function fail(text) {
+    $('status').innerHTML = '<span class="err">' + text + '</span>';
+  }
+
+  if (params.get('error_description')) {
+    fail(params.get('error_description').replace(/\+/g, ' ') + '. Ask for a new reset email in the Kurs app.');
+  } else {
+    sb.auth.onAuthStateChange((event, session) => { if (session) showForm(); });
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session) showForm();
+      else setTimeout(() => { if ($('form').hidden) fail('This reset link is not valid any more. Ask for a new reset email in the Kurs app.'); }, 4000);
+    });
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p1 = $('p1').value, p2 = $('p2').value;
+    $('msg').textContent = '';
+    if (p1.length < 6) { $('msg').innerHTML = '<span class="err">Use at least 6 characters.</span>'; return; }
+    if (p1 !== p2) { $('msg').innerHTML = '<span class="err">The two passwords are not the same.</span>'; return; }
+    $('save').disabled = true;
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    $('save').disabled = false;
+    if (error) { $('msg').innerHTML = '<span class="err">' + error.message + '</span>'; return; }
+    await sb.auth.signOut();
+    $('form').hidden = true;
+    $('status').innerHTML = '<span class="ok">Password changed.</span><br>Open the Kurs app and log in with your new password.';
+  });
+</script>
+</body>
+</html>
